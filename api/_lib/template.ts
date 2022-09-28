@@ -3,6 +3,9 @@ import { readFileSync } from 'fs';
 import { marked } from 'marked';
 import { sanitizeHtml } from './sanitizer';
 import { ParsedRequest } from './types';
+import { loadDefaultJapaneseParser } from 'budoux';
+const parser = loadDefaultJapaneseParser();
+
 const twemoji = require('twemoji');
 const twOptions = { folder: 'svg', ext: '.svg' };
 const emojify = (text: string) => twemoji.parse(text, twOptions);
@@ -13,15 +16,13 @@ const mono = readFileSync(`${__dirname}/../_fonts/Vera-Mono.woff2`).toString('ba
 
 function getCss(theme: string, fontSize: string) {
     let background = 'white';
-    let foreground = 'black';
-    let radial = 'lightgray';
 
     if (theme === 'dark') {
         background = 'black';
-        foreground = 'white';
-        radial = 'dimgray';
     }
     return `
+    @import url('https://fonts.googleapis.com/css?family=Noto+Sans+JP');
+
     @font-face {
         font-family: 'Inter';
         font-style:  normal;
@@ -45,18 +46,17 @@ function getCss(theme: string, fontSize: string) {
 
     body {
         background: ${background};
-        background-image: radial-gradient(circle at 25px 25px, ${radial} 2%, transparent 0%), radial-gradient(circle at 75px 75px, ${radial} 2%, transparent 0%);
-        background-size: 100px 100px;
         height: 100vh;
         display: flex;
         text-align: center;
         align-items: center;
         justify-content: center;
+        margin: 0;
     }
 
     code {
         color: #D400FF;
-        font-family: 'Vera';
+        font-family: 'Vera', 'M PLUS 1p';
         white-space: pre-wrap;
         letter-spacing: -5px;
     }
@@ -83,8 +83,25 @@ function getCss(theme: string, fontSize: string) {
         font-size: 100px;
     }
 
+    .wrapper {
+        width: 1200px;
+        height: 630px;
+        display: flex;
+        box-sizing: border-box;
+        background-color:white;
+    }
+
     .spacer {
-        margin: 150px;
+        margin: 0 64px 16px 64px;
+        border-radius: 16px;
+        display: flex;
+        align-items: flex-start;
+        flex-direction: column;
+        justify-content: space-between;
+        width: 100%;
+        border: 4px dashed #4172B5;
+        margin-top: 18px;
+        padding: 24px;
     }
 
     .emoji {
@@ -93,18 +110,49 @@ function getCss(theme: string, fontSize: string) {
         margin: 0 .05em 0 .1em;
         vertical-align: -0.1em;
     }
-    
+
     .heading {
-        font-family: 'Inter', sans-serif;
+        font-family: 'Noto Sans JP', 'Inter', sans-serif;
         font-size: ${sanitizeHtml(fontSize)};
         font-style: normal;
-        color: ${foreground};
-        line-height: 1.8;
+        font-weight: 600;
+        color: #1E2126;
+        line-height: 1.5;
+        margin: 0;
+        text-align: left;
+
+    }
+
+    .footer {
+        font-family: 'Noto Sans JP', 'Inter', sans-serif;
+        font-size: 24px;
+        text-align: left;
+        width: 100%;
+        line-height: 0.5;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+    }
+
+    .footer-icon {
+        font-family: 'Noto Sans JP', 'Inter', sans-serif;
+        font-size: 24px;
+        text-align: left;
+        width: 100%;
+        line-height: 0.5;
+        display: flex;
+        align-items: center;
+        justify-content: flex-end;
     }`;
 }
 
 export function getHtml(parsedReq: ParsedRequest) {
-    const { text, theme, md, fontSize, images, widths, heights } = parsedReq;
+    const { text, theme, md, fontSize } = parsedReq;
+
+    const translatedText = parser.translateHTMLString(
+      emojify(md ? marked(text) : sanitizeHtml(text))
+    )
+
     return `<!DOCTYPE html>
 <html>
     <meta charset="utf-8">
@@ -114,33 +162,18 @@ export function getHtml(parsedReq: ParsedRequest) {
         ${getCss(theme, fontSize)}
     </style>
     <body>
-        <div>
+        <div class="wrapper">
             <div class="spacer">
-            <div class="logo-wrapper">
-                ${images.map((img, i) =>
-                    getPlusSign(i) + getImage(img, widths[i], heights[i])
-                ).join('')}
+                <div>
+                </div>
+                <div class="heading">
+                ${translatedText}
+                </div>
+                <div class="footer">
+                    <p>cat2koban.dev</p>
+                    <img src="https://img.esa.io/uploads/production/attachments/19513/2022/09/26/129728/b3c3cf55-f9de-4119-ac8a-811ffc235da6.png" width="64px" height="64px" style="border-radius: 100%;">
+                </div>
             </div>
-            <div class="spacer">
-            <div class="heading">${emojify(
-                md ? marked(text) : sanitizeHtml(text)
-            )}
-            </div>
-        </div>
     </body>
 </html>`;
-}
-
-function getImage(src: string, width ='auto', height = '225') {
-    return `<img
-        class="logo"
-        alt="Generated Image"
-        src="${sanitizeHtml(src)}"
-        width="${sanitizeHtml(width)}"
-        height="${sanitizeHtml(height)}"
-    />`
-}
-
-function getPlusSign(i: number) {
-    return i === 0 ? '' : '<div class="plus">+</div>';
 }
